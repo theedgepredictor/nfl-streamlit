@@ -98,7 +98,6 @@ def display_event_tab(dataset_df, folded_df):
             default_week_idx = week_options.index(max(week_options))
         else:
             default_week_idx = week_options.index(s_df.week.values[0])
-
     else:
         default_week_idx = week_options.index(max(week_options))
 
@@ -148,7 +147,7 @@ def display_event_tab(dataset_df, folded_df):
 
     # Filter games for the selected week
     filtered_df = dataset_df[((dataset_df['season'] == season)&(dataset_df['week'] == week))].copy()
-    if season < dataset_df.season.max() or (season == dataset_df.season.max() and week < dataset_df[((dataset_df['season'] == season)&(dataset_df['away_actual_points'].isnull()))].week.max()):
+    if season < dataset_df.season.max() or (season == dataset_df.season.max() and week < dataset_df[((dataset_df['season'] == season)&(dataset_df['away_actual_points'].isnull()))].week.max() - 1):
         eval = make_evaluation_report(filtered_df)
         st.dataframe(pd.DataFrame([eval]))
 

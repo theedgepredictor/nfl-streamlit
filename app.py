@@ -2,6 +2,8 @@ import os
 
 import streamlit as st
 # Streamlit App
+from sklearn.metrics import accuracy_score, mean_absolute_error
+
 from consts import GLOSSARY
 from loaders import load_feature_store
 from streamlit_controller import STYLE
@@ -10,6 +12,7 @@ import nbformat
 from nbconvert import HTMLExporter
 
 # Path to the folder containing your Jupyter Notebooks
+SEASONS = [2020,2021,2022,2023,2024]
 NOTEBOOK_FOLDER = './experiments/'  # Change this to the correct path
 st.set_page_config(layout='wide')
 
@@ -95,6 +98,7 @@ def display_event_tab(dataset_df, folded_df):
             default_week_idx = week_options.index(max(week_options))
         else:
             default_week_idx = week_options.index(s_df.week.values[0])
+
     else:
         default_week_idx = week_options.index(max(week_options))
 
@@ -143,11 +147,14 @@ def display_event_tab(dataset_df, folded_df):
     ]
 
     # Filter games for the selected week
-    filtered_df = dataset_df[((dataset_df['season'] == season)&(dataset_df['week'] == week))][top_table_cols].copy()
+    filtered_df = dataset_df[((dataset_df['season'] == season)&(dataset_df['week'] == week))].copy()
+    if season < dataset_df.season.max() or (season == dataset_df.season.max() and week < dataset_df[((dataset_df['season'] == season)&(dataset_df['away_actual_points'].isnull()))].week.max()):
+        eval = make_evaluation_report(filtered_df)
+        st.dataframe(pd.DataFrame([eval]))
 
     # Show the games for the selected week
     st.write(f"Games for Week {week} in the {season} Season")
-    selected_game = st.dataframe(filtered_df, selection_mode="single-row")
+    selected_game = st.dataframe(filtered_df[top_table_cols], selection_mode="single-row")
     if selected_game:
         print(selected_game)
 
@@ -187,16 +194,86 @@ def display_glossary_tab():
     """)
     st.dataframe(pd.DataFrame(GLOSSARY))
 
+def did_away_team_cover(spread_line, away_team_spread):
+    """Returns True if away team covered the spread"""
+    if spread_line < 0:  # Away team is favored
+        return away_team_spread > abs(spread_line)
+    else:  # Home team is favored
+        return away_team_spread < spread_line
+
+def make_evaluation_report(eval_df):
+    # Actual values
+    actual_wp = eval_df['away_team_win'].values
+    actual_spread = eval_df['actual_away_spread'].values
+    actual_total = eval_df['actual_point_total'].values
+
+    # --- Vegas Baseline ---
+    vegas_wp = eval_df['spread_line'].apply(lambda x: 1 if x < 0 else 0).values
+    vegas_spread = eval_df['spread_line'].values
+    vegas_total = eval_df['total_line'].values
+
+    # --- Expected Points Averages ---
+    exp_avg_wp = eval_df['expected_spread'].apply(lambda x: 1 if x < 0 else 0).values
+    exp_avg_spread = eval_df['expected_spread'].values
+    exp_avg_total = eval_df['away_expected_points'].values + eval_df['home_expected_points'].values
+
+    # --- Spread and Total Coverage ---
+    eval_df['expected_system_covered_spread'] = (eval_df['away_expected_points'] + eval_df['spread_line'] >= eval_df['home_expected_points'])
+    eval_df['expected_system_covered_spread'] = eval_df['expected_system_covered_spread'] == eval_df['away_team_covered']
+
+    eval_df['expected_system_under_covered_total'] = (eval_df['home_expected_points'] + eval_df['away_expected_points'] <= eval_df['total_line'])
+    eval_df['expected_system_under_covered_total'] = eval_df['expected_system_under_covered_total'] == eval_df['under_covered']
+
+    return {
+        'games': eval_df.shape[0],
+        'vegas_wp_accuracy': round(accuracy_score(actual_wp, vegas_wp),4),
+        'vegas_spread_mae': round(mean_absolute_error(actual_spread, vegas_spread),4),
+        'vegas_total_mae': round(mean_absolute_error(actual_total, vegas_total),4),
+        'expected_wp_accuracy': round(accuracy_score(actual_wp, exp_avg_wp),4),
+        'expected_spread_mae': round(mean_absolute_error(actual_spread, exp_avg_spread),4),
+        'expected_total_mae': round(mean_absolute_error(actual_total, exp_avg_total),4),
+        'expected_away_points_mae': round(mean_absolute_error(eval_df['away_actual_points'], eval_df['away_expected_points']),4),
+        'expected_home_points_mae': round(mean_absolute_error(eval_df['home_actual_points'], eval_df['home_expected_points']),4),
+        'expected_system_correct_spread_percent': round(eval_df['expected_system_covered_spread'].sum() / len(eval_df),4),
+        'expected_system_correct_total_percent': round(eval_df['expected_system_under_covered_total'].sum() / len(eval_df), 4)
+    }
+
+def display_evaulation_tab(dataset_df):
+    st.subheader("Evaluations", anchor=False)
+    # Load data for the 2024 season
+    # Select season to evaluate
+
+    evals = []
+
+    for season in SEASONS:
+        eval_df = dataset_df[(dataset_df['season'] == season) & (dataset_df['away_actual_points'].notnull())].copy()
+        eval_report = make_evaluation_report(eval_df)
+        eval_report['season'] = str(season)
+        evals.append(eval_report)
+    full = make_evaluation_report(dataset_df[(dataset_df['away_actual_points'].notnull())].copy())
+    full['season'] = 'Full'
+    evals.append(full)
+
+    evals = pd.DataFrame(evals)
+    evals.index = evals.season
+    evals = evals.drop(columns='season')
+    st.dataframe(evals)
+
+
 def main():
     st.title('The Edge Predictor NFL Statistics', anchor=False)
 
-    seasons = [2020,2021,2022,2023,2024]
-
     # Load data
-    dataset_df, folded_df = load_feature_store(seasons)
+    dataset_df, folded_df = load_feature_store(SEASONS)
 
     ### Define tabs for Team, Event
-    event_tab, team_tab, experiments_tab, glossary_tab = st.tabs(["Events","Teams", 'Experiments' ,"Glossary"])
+    event_tab, team_tab,evaluations_tab, experiments_tab, glossary_tab = st.tabs([
+        "Events",
+        "Teams",
+        "Evaluation",
+        "Experiments",
+        "Glossary"
+    ])
     with event_tab:
         st.markdown(STYLE, unsafe_allow_html=True)
         display_event_tab(dataset_df, folded_df)
@@ -205,8 +282,13 @@ def main():
         st.markdown(STYLE, unsafe_allow_html=True)
         display_team_tab(folded_df)
 
+    with evaluations_tab:
+        display_evaulation_tab(dataset_df)
+
     with experiments_tab:
         display_experiments_tab()
+
+
 
     with glossary_tab:
         st.markdown(STYLE, unsafe_allow_html=True)

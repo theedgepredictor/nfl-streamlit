@@ -1,13 +1,11 @@
 TARGETS = [
-    'home_score',
-    'away_score',
-    'away_team_win',
-    'away_team_spread',
-    'total_target',
-    'away_team_covered',
-    'home_team_covered',
-    'under_covered',
-    'away_team_covered_spread',
+    'actual_home_score',
+    'actual_away_score',
+    'actual_away_team_win',
+    'actual_away_spread',
+    'actual_point_total',
+    'actual_away_team_covered_spread',
+    'actual_under_covered',
 ]
 
 META = [

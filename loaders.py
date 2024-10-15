@@ -6,15 +6,19 @@ from utils import df_rename_shift, df_rename_exavg, df_rename_fold
 import streamlit as st
 
 def get_event_feature_store(season):
+    #return pd.read_parquet(f'../nfl-feature-store/data/feature_store/event/regular_season_game/{season}.parquet')
     return pd.read_parquet(f'https://github.com/theedgepredictor/nfl-feature-store/raw/main/data/feature_store/event/regular_season_game/{season}.parquet')
 
-@st.cache_data
+@st.cache_data(ttl=3600) # Invalidate cache after an hour
 def load_feature_store(seasons):
     event_fs = pd.concat([get_event_feature_store(season) for season in seasons], ignore_index=True)
+    event_fs = event_fs[event_fs.away_elo_pre.notnull()].copy()
+
     columns_for_base = META + ['home_elo_pre', 'away_elo_pre'] + VEGAS + TARGETS + ['away_offensive_rank','away_defensive_rank','home_offensive_rank','home_defensive_rank',]
     columns_for_shift = ['team', 'season', 'week', 'is_home'] + POINT_FEATURES + JUST_SIMPLE_FEATURES
     shifted_df = event_fs.copy()
     base_dataset_df = event_fs[columns_for_base].copy()
+
     del event_fs
 
     #### Shift Features
@@ -43,9 +47,9 @@ def load_feature_store(seasons):
     folded_dataset_df['game_id'] = folded_dataset_df.apply(lambda x: f"{x['season']}_{x['week']}_{x['away_team']}_{x['home_team']}", axis=1)
     folded_dataset_df = folded_dataset_df.rename(columns={'spread_line': 'away_spread_line'})
     folded_dataset_df['home_spread_line'] = - folded_dataset_df['away_spread_line']
-    folded_dataset_df['home_team_spread'] = -folded_dataset_df['away_team_spread']
-    folded_dataset_df['home_team_win'] = folded_dataset_df['away_team_win'] == 0
-    folded_dataset_df['home_team_covered_spread'] = folded_dataset_df['away_team_covered_spread'] == 0
+    folded_dataset_df['actual_home_spread'] = -folded_dataset_df['actual_away_spread']
+    folded_dataset_df['actual_home_team_win'] = folded_dataset_df['actual_away_team_win'] == 0
+    folded_dataset_df['actual_home_team_covered_spread'] = folded_dataset_df['actual_away_team_covered_spread'] == 0
     folded_dataset_df = df_rename_fold(folded_dataset_df, 'away_', 'home_')
     folded_dataset_df = pd.merge(folded_dataset_df, expected_features_df, on=['team', 'season', 'week'], how='left')
     dataset_df.index = dataset_df.game_id
@@ -54,14 +58,14 @@ def load_feature_store(seasons):
     dataset_df['expected_spread'] = dataset_df['home_exavg_avg_points'] - dataset_df['away_exavg_avg_points']
     dataset_df['expected_total'] = dataset_df['home_exavg_avg_points'] + dataset_df['away_exavg_avg_points']
     dataset_df = dataset_df.rename(columns={
-        'away_team_spread': 'actual_away_spread',
-        'total_target': 'actual_point_total',
+        #'away_team_spread': 'actual_away_spread',
+        #'total_target': 'actual_point_total',
         'away_exavg_avg_points': 'away_expected_points',
         'home_exavg_avg_points': 'home_expected_points',
         'home_elo_pre': 'home_rating',
         'away_elo_pre': 'away_rating',
-        'away_score': 'away_actual_points',
-        'home_score': 'home_actual_points',
+        'actual_away_score': 'actual_away_points',
+        'actual_home_score': 'actual_home_points',
         'away_exavg_avg_carries': 'away_expected_carries',
         'home_exavg_avg_carries': 'home_expected_carries',
         'home_exavg_avg_rushing_yards': 'home_expected_rushing_yards',
@@ -94,7 +98,7 @@ def load_feature_store(seasons):
         'exavg_avg_q4_points': 'expected_q4_points',
         'exavg_avg_q5_points': 'expected_q5_points',
         'elo_pre': 'rating',
-        'score': 'actual_points',
+        'actual_score': 'actual_points',
         'exavg_avg_carries': 'expected_carries',
         'exavg_avg_rushing_yards': 'expected_rushing_yards',
         'exavg_avg_rushing_tds': 'expected_rushing_tds',

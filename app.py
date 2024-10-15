@@ -34,17 +34,17 @@ def transform_teams_for_current_week(folded_df, season, week):
     else:
         s = folded_df[((folded_df['season'] == season) & (folded_df['week'] < week))].copy()
     s['avg_points_over_expected'] = s['actual_points'] - s['expected_points']
-    s['over_covered'] = s['under_covered'] == 0
+    s['actual_over_covered'] = s['actual_under_covered'] == 0
     points_over_expected = s.groupby(['team'])['avg_points_over_expected'].mean().sort_values(ascending=False).reset_index()
-    covered_spread = s.groupby(['team'])['team_covered_spread'].sum().sort_values(ascending=False).reset_index()
-    went_under = s.groupby(['team'])['over_covered'].sum().sort_values(ascending=False).reset_index()
+    covered_spread = s.groupby(['team'])['actual_team_covered_spread'].sum().sort_values(ascending=False).reset_index()
+    went_under = s.groupby(['team'])['actual_over_covered'].sum().sort_values(ascending=False).reset_index()
 
     joiners = [
         points_over_expected,
         covered_spread,
         went_under
     ]
-    filtered_df = filtered_df.drop(columns=['under_covered', 'team_covered_spread'])
+    filtered_df = filtered_df.drop(columns=['actual_under_covered', 'actual_team_covered_spread'])
     for j in joiners:
         filtered_df = pd.merge(filtered_df, j, on=['team'], how='left')
     return filtered_df
@@ -75,8 +75,8 @@ def display_team_tab(folded_df):
         'offensive_rank',
         'defensive_rank',
         'avg_points_over_expected',
-        'team_covered_spread',
-        'over_covered',
+        'actual_team_covered_spread',
+        'actual_over_covered',
     ]
 
 
@@ -93,7 +93,7 @@ def display_event_tab(dataset_df, folded_df):
     # Select week to display
     week_options = sorted(dataset_df[dataset_df['season'] == season]['week'].unique())
     if season == max(season_options):
-        s_df = dataset_df[((dataset_df['season'] == season)&(dataset_df['away_actual_points'].isnull()))].copy()
+        s_df = dataset_df[((dataset_df['season'] == season)&(dataset_df['actual_away_points'].isnull()))].copy()
         if s_df.shape[0] == 0:
             default_week_idx = week_options.index(max(week_options))
         else:
@@ -115,17 +115,17 @@ def display_event_tab(dataset_df, folded_df):
         'expected_total',
         'actual_point_total',
         'away_expected_points',
-        'away_actual_points',
+        'actual_away_points',
         'home_expected_points',
-        'home_actual_points',
+        'actual_home_points',
     ]
 
     folded_table_cols = [
         'rating',
         'offensive_rank',
         'defensive_rank',
-        'team_covered_spread',
-        'over_covered',
+        'actual_team_covered_spread',
+        'actual_over_covered',
         'avg_points_over_expected',
         'expected_points',
         'expected_q1_points',
@@ -147,7 +147,7 @@ def display_event_tab(dataset_df, folded_df):
 
     # Filter games for the selected week
     filtered_df = dataset_df[((dataset_df['season'] == season)&(dataset_df['week'] == week))].copy()
-    if season < dataset_df.season.max() or (season == dataset_df.season.max() and week < dataset_df[((dataset_df['season'] == season)&(dataset_df['away_actual_points'].isnull()))].week.max() - 1):
+    if season < dataset_df.season.max() or (season == dataset_df.season.max() and week < dataset_df[((dataset_df['season'] == season)&(dataset_df['actual_away_points'].isnull()))].week.max() - 1):
         eval = make_evaluation_report(filtered_df)
         st.dataframe(pd.DataFrame([eval]))
 
@@ -202,7 +202,7 @@ def did_away_team_cover(spread_line, away_team_spread):
 
 def make_evaluation_report(eval_df):
     # Actual values
-    actual_wp = eval_df['away_team_win'].values
+    actual_wp = eval_df['actual_away_team_win'].values
     actual_spread = eval_df['actual_away_spread'].values
     actual_total = eval_df['actual_point_total'].values
 
@@ -218,10 +218,10 @@ def make_evaluation_report(eval_df):
 
     # --- Spread and Total Coverage ---
     eval_df['expected_system_covered_spread'] = (eval_df['away_expected_points'] + eval_df['spread_line'] >= eval_df['home_expected_points'])
-    eval_df['expected_system_covered_spread'] = eval_df['expected_system_covered_spread'] == eval_df['away_team_covered']
+    eval_df['expected_system_covered_spread'] = eval_df['expected_system_covered_spread'] == eval_df['actual_away_team_covered_spread']
 
     eval_df['expected_system_under_covered_total'] = (eval_df['home_expected_points'] + eval_df['away_expected_points'] <= eval_df['total_line'])
-    eval_df['expected_system_under_covered_total'] = eval_df['expected_system_under_covered_total'] == eval_df['under_covered']
+    eval_df['expected_system_under_covered_total'] = eval_df['expected_system_under_covered_total'] == eval_df['actual_under_covered']
 
     return {
         'games': eval_df.shape[0],
@@ -231,8 +231,8 @@ def make_evaluation_report(eval_df):
         'expected_wp_accuracy': round(accuracy_score(actual_wp, exp_avg_wp),4),
         'expected_spread_mae': round(mean_absolute_error(actual_spread, exp_avg_spread),4),
         'expected_total_mae': round(mean_absolute_error(actual_total, exp_avg_total),4),
-        'expected_away_points_mae': round(mean_absolute_error(eval_df['away_actual_points'], eval_df['away_expected_points']),4),
-        'expected_home_points_mae': round(mean_absolute_error(eval_df['home_actual_points'], eval_df['home_expected_points']),4),
+        'expected_away_points_mae': round(mean_absolute_error(eval_df['actual_away_points'], eval_df['away_expected_points']),4),
+        'expected_home_points_mae': round(mean_absolute_error(eval_df['actual_home_points'], eval_df['home_expected_points']),4),
         'expected_system_correct_spread_percent': round(eval_df['expected_system_covered_spread'].sum() / len(eval_df),4),
         'expected_system_correct_total_percent': round(eval_df['expected_system_under_covered_total'].sum() / len(eval_df), 4)
     }
@@ -245,11 +245,11 @@ def display_evaulation_tab(dataset_df):
     evals = []
 
     for season in SEASONS:
-        eval_df = dataset_df[(dataset_df['season'] == season) & (dataset_df['away_actual_points'].notnull())].copy()
+        eval_df = dataset_df[(dataset_df['season'] == season) & (dataset_df['actual_away_points'].notnull())].copy()
         eval_report = make_evaluation_report(eval_df)
         eval_report['season'] = str(season)
         evals.append(eval_report)
-    full = make_evaluation_report(dataset_df[(dataset_df['away_actual_points'].notnull())].copy())
+    full = make_evaluation_report(dataset_df[(dataset_df['actual_away_points'].notnull())].copy())
     full['season'] = 'Full'
     evals.append(full)
 
@@ -261,7 +261,6 @@ def display_evaulation_tab(dataset_df):
 
 def main():
     st.title('The Edge Predictor NFL Statistics', anchor=False)
-
     # Load data
     dataset_df, folded_df = load_feature_store(SEASONS)
 

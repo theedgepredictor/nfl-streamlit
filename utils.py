@@ -137,7 +137,7 @@ def find_year_for_season( date: datetime.datetime = None):
     """
     SEASON_START_MONTH = {
 
-        "NFL": {'start': 8, 'wrap': False},
+        "NFL": {'start': 6, 'wrap': False},
     }
     if date is None:
         today = datetime.datetime.utcnow()

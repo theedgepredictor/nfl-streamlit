@@ -10,9 +10,10 @@ from streamlit_controller import STYLE
 import pandas as pd
 import nbformat
 from nbconvert import HTMLExporter
+from utils import find_year_for_season
 
 # Path to the folder containing your Jupyter Notebooks
-SEASONS = [2019,2020,2021,2022,2023,2024]
+SEASONS = list(range(2019, find_year_for_season() + 1))
 NOTEBOOK_FOLDER = './experiments/'  # Change this to the correct path
 st.set_page_config(layout='wide')
 

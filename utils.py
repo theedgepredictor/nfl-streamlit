@@ -123,33 +123,3 @@ def df_rename_shift(df, drop_cols=None):
     del df
     out_df = pd.concat([away_df, home_df])
     return out_df
-
-def find_year_for_season( date: datetime.datetime = None):
-    """
-    Find the year for a specific season based on the league and date.
-
-    Args:
-        league (ESPNSportTypes): Type of sport.
-        date (datetime.datetime): Date for the sport (default is None).
-
-    Returns:
-        int: Year for the season.
-    """
-    SEASON_START_MONTH = {
-
-        "NFL": {'start': 6, 'wrap': False},
-    }
-    if date is None:
-        today = datetime.datetime.utcnow()
-    else:
-        today = date
-    start = SEASON_START_MONTH["NFL"]['start']
-    wrap = SEASON_START_MONTH["NFL"]['wrap']
-    if wrap and start - 1 <= today.month <= 12:
-        return today.year + 1
-    elif not wrap and start == 1 and today.month == 12:
-        return today.year + 1
-    elif not wrap and not start - 1 <= today.month <= 12:
-        return today.year - 1
-    else:
-        return today.year

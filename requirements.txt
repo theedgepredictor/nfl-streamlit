@@ -8,3 +8,6 @@ pydantic==2.6.1
 streamlit
 nbformat
 nbconvert
+folium
+streamlit-folium
+espn-api-orm>=0.0.8

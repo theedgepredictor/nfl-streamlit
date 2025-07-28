@@ -2,6 +2,35 @@ import pandas as pd
 from pandas.core.dtypes.common import is_numeric_dtype
 import datetime
 
+def did_away_team_cover(spread_line, away_team_spread):
+    """Returns True if away team covered the spread"""
+    if spread_line < 0:  # Away team is favored
+        return away_team_spread > abs(spread_line)
+    else:  # Home team is favored
+        return away_team_spread < spread_line
+
+def transform_teams_for_current_week(folded_df, season, week):
+    filtered_df = folded_df[((folded_df['season'] == season) & (folded_df['week'] == week))].copy()
+    if week == 1:
+        s = folded_df[((folded_df['season'] == season-1) & (folded_df['week'] < 18 if season > 2021 else 17))].copy()
+    else:
+        s = folded_df[((folded_df['season'] == season) & (folded_df['week'] < week))].copy()
+    s['avg_points_over_expected'] = s['actual_points'] - s['expected_points']
+    s['actual_over_covered'] = s['actual_under_covered'] == 0
+    points_over_expected = s.groupby(['team'])['avg_points_over_expected'].mean().sort_values(ascending=False).reset_index()
+    covered_spread = s.groupby(['team'])['actual_team_covered_spread'].sum().sort_values(ascending=False).reset_index()
+    went_under = s.groupby(['team'])['actual_over_covered'].sum().sort_values(ascending=False).reset_index()
+
+    joiners = [
+        points_over_expected,
+        covered_spread,
+        went_under
+    ]
+    filtered_df = filtered_df.drop(columns=['actual_under_covered', 'actual_team_covered_spread'])
+    for j in joiners:
+        filtered_df = pd.merge(filtered_df, j, on=['team'], how='left')
+    return filtered_df
+
 def df_rename_pivot(df, all_cols, pivot_cols, t1_prefix, t2_prefix, sub_merge_df=None):
     '''
     The reverse of a df_rename_fold

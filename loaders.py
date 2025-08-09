@@ -1,4 +1,5 @@
 import pandas as pd
+from nfl_data_loader.api.sources.players.adv.fantasy.projections import get_player_fantasy_projections
 
 from consts import META, VEGAS, TARGETS, POINT_FEATURES, RANKING_FEATURES, JUST_SIMPLE_FEATURES
 from utils import df_rename_shift, df_rename_exavg, df_rename_fold
@@ -8,6 +9,19 @@ import streamlit as st
 def get_event_feature_store(season):
     #return pd.read_parquet(f'../nfl-feature-store/data/feature_store/event/regular_season_game/{season}.parquet')
     return pd.read_parquet(f'https://github.com/theedgepredictor/nfl-feature-store/raw/main/data/feature_store/event/regular_season_game/{season}.parquet')
+
+
+@st.cache_data(ttl=3600)
+def load_player_data(seasons):
+    """Load player data for all position groups"""
+    all_player_data = []
+    for season in seasons:
+        # Load data for each season
+        season_data = get_player_fantasy_projections(season, mode='weekly', group=None)
+        all_player_data.append(season_data)
+
+    # Combine all seasons
+    return pd.concat(all_player_data, ignore_index=True)
 
 @st.cache_data(ttl=3600) # Invalidate cache after an hour
 def load_feature_store(seasons):
@@ -112,5 +126,8 @@ def load_feature_store(seasons):
     })
     folded_dataset_df['rating'] = folded_dataset_df['rating'].astype(int)
     folded_dataset_df['expected_time_of_possession'] = folded_dataset_df['expected_time_of_possession'].apply(lambda x: f"{int(x // 60)}:{int(x % 60):02}")
-    return dataset_df, folded_dataset_df
+    # Load player data
+    player_df = load_player_data(seasons)
+
+    return dataset_df, folded_dataset_df, player_df
 

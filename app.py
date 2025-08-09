@@ -10,6 +10,7 @@ import nbformat
 from nbconvert import HTMLExporter
 from nfl_data_loader.utils.utils import find_year_for_season
 # Import tab modules
+from tabs.players.players_tab import display_event_player_tab, display_player_tab
 from tabs.venues.venues_tab import display_venues_tab
 from tabs.teams.teams_tab import display_team_tab
 from tabs.events.events_tab import display_event_tab
@@ -28,12 +29,14 @@ st.set_page_config(layout='wide')
 def main():
     st.title('The Edge Predictor NFL Statistics', anchor=False)
     # Load data
-    dataset_df, folded_df = load_feature_store(SEASONS)
+    dataset_df, folded_df, player_df = load_feature_store(SEASONS)
 
     ### Define tabs for Team, Event
-    event_tab, team_tab, evaluations_tab, experiments_tab, glossary_tab, venues_tab = st.tabs([
+    event_tab, team_tab,player_tab,event_player_tab, evaluations_tab, experiments_tab, glossary_tab, venues_tab = st.tabs([
         "Events",
         "Teams",
+        "Event Players",
+        "Players",
         "Evaluation",
         "Experiments",
         "Glossary",
@@ -47,7 +50,13 @@ def main():
     with team_tab:
         st.markdown(STYLE, unsafe_allow_html=True)
         display_team_tab(folded_df)
+    with event_player_tab:
+        st.markdown(STYLE, unsafe_allow_html=True)
+        display_event_player_tab(dataset_df, player_df)
 
+    with player_tab:
+        st.markdown(STYLE, unsafe_allow_html=True)
+        display_player_tab(player_df)
     with evaluations_tab:
         display_evaulation_tab(dataset_df, SEASONS)
 

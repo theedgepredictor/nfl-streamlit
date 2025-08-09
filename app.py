@@ -35,8 +35,8 @@ def main():
     event_tab, team_tab,player_tab,event_player_tab, evaluations_tab, experiments_tab, glossary_tab, venues_tab = st.tabs([
         "Events",
         "Teams",
-        "Event Players",
         "Players",
+        "Event Players",
         "Evaluation",
         "Experiments",
         "Glossary",
@@ -50,6 +50,7 @@ def main():
     with team_tab:
         st.markdown(STYLE, unsafe_allow_html=True)
         display_team_tab(folded_df)
+
     with event_player_tab:
         st.markdown(STYLE, unsafe_allow_html=True)
         display_event_player_tab(dataset_df, player_df)

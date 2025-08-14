@@ -10,6 +10,9 @@ def get_event_feature_store(season):
     #return pd.read_parquet(f'../nfl-feature-store/data/feature_store/event/regular_season_game/{season}.parquet')
     return pd.read_parquet(f'https://github.com/theedgepredictor/nfl-feature-store/raw/main/data/feature_store/event/regular_season_game/{season}.parquet')
 
+def get_player_fantasy_feature_store(season):
+    #return pd.read_parquet(f'../nfl-feature-store/data/feature_store/event/regular_season_game/{season}.parquet')
+    return pd.read_parquet(f'https://github.com/theedgepredictor/nfl-feature-store/raw/main/data/feature_store/player/fantasy/{season}.parquet')
 
 @st.cache_data(ttl=3600)
 def load_player_data(seasons):
@@ -17,7 +20,7 @@ def load_player_data(seasons):
     all_player_data = []
     for season in seasons:
         # Load data for each season
-        season_data = get_player_fantasy_projections(season, mode='weekly', group=None)
+        season_data = get_player_fantasy_feature_store(season)
         all_player_data.append(season_data)
 
     # Combine all seasons

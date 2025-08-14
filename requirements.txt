@@ -12,5 +12,5 @@ nbconvert
 folium
 streamlit-folium
 espn-api-orm>=0.0.8
-nfl-data-loader>=0.0.2
+nfl-data-loader>=0.0.6
 

@@ -35,7 +35,7 @@ def main():
     event_tab, team_tab,player_tab,event_player_tab, evaluations_tab, experiments_tab, glossary_tab, venues_tab = st.tabs([
         "Events",
         "Teams",
-        "Players",
+        "Players - Fantasy",
         "Event Players",
         "Evaluation",
         "Experiments",

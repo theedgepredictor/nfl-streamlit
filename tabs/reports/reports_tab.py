@@ -98,77 +98,25 @@ def display_reports_tab(player_df, dataset_df, seasons):
     ecr_tab, boom_tab = st.tabs(["ECR vs Projections", "Boom / Bust"])
 
     with ecr_tab:
-        # Season selector (latest by default)
         season_options = sorted(seasons)
         default_season = max(season_options)
         season = st.selectbox("Select Season:", season_options, index=season_options.index(default_season))
 
-        # Week selector: allow Total (all weeks), Average per week, or single week
         view_mode = st.selectbox("View Mode:", ["Total", "Average per Week", "Single Week"], index=1)
 
         week = None
         if view_mode == "Single Week":
             week_options = sorted(dataset_df[dataset_df['season'] == season]['week'].unique())
-            week = st.selectbox("Select Week:", week_options, index=len(week_options)-1)
-
-        # Prepare player projections for the season
-        df = player_df[player_df['season'] == season].copy()
-
-        # Compute aggregation key for player-week
-        # Calculate projected_points average and total per player across weeks
-        agg_total = df.groupby(['player_id','name','team','position'], as_index=False)['projected_points'].sum().rename(columns={'projected_points':'projected_points_total'})
-        agg_avg = df.groupby(['player_id','name','team','position'], as_index=False)['projected_points'].mean().rename(columns={'projected_points':'projected_points_avg'})
-        agg_count = df.groupby(['player_id'], as_index=False).size()
-
-        # Merge ECR if available in player_df (expert consensus ranking)
-        if 'ECR' in df.columns:
-            ecr = df[['player_id','ECR']].drop_duplicates(subset=['player_id'])
-        elif 'ecr' in df.columns:
-            ecr = df[['player_id','ecr']].drop_duplicates(subset=['player_id']).rename(columns={'ecr':'ECR'})
-        else:
-            ecr = pd.DataFrame(columns=['player_id','ECR'])
-
-        # Build merged dataframe depending on view mode.
-        if view_mode == 'Single Week' and week is not None:
-            # Use only the selected week's projections so projected_points_avg reflects that week
-            df_week = df[df['week'] == week].copy()
-            # Keep first projection per player (should be one row per player per week)
-            merged = df_week.groupby(['player_id','name','team','position'], as_index=False)['projected_points'].first().rename(columns={'projected_points':'projected_points_avg'})
-            # For single-week view we also set projected_points_total to the same week's projection
-            merged['projected_points_total'] = merged['projected_points_avg']
-            # Merge ECR
-            merged = pd.merge(merged, ecr, on='player_id', how='left')
-        else:
-            merged = pd.merge(agg_total, agg_avg, on=['player_id','name','team','position'], how='left')
-            merged = pd.merge(merged, ecr, on='player_id', how='left')
-
-        # Remove players without ECR - we only track players that have an expert consensus ranking
-        if 'ECR' in merged.columns:
-            merged = merged[merged['ECR'].notna()].copy()
-
-        # Depending on view mode, choose x axis
-        if view_mode == 'Total':
-            x_col = 'projected_points_total'
-            x_label = 'Projected Points (Total)'
-        else:
-            x_col = 'projected_points_avg'
-            x_label = 'Projected Points (Avg per Week)'
-
-        # Prepare plot: ECR (y) vs projected points (x)
-        # Lower ECR = better (1 is best), so we may invert the axis for readability
-        plot_df = merged.copy()
-        plot_df = plot_df.dropna(subset=[x_col])
-        plot_df['ECR_plot'] = plot_df['ECR'].fillna(9999)
+            if week_options:
+                week = st.selectbox("Select Week:", week_options, index=len(week_options)-1)
 
         st.write("## ECR vs Projections")
         col1, col2 = st.columns([3,1])
 
-        # Controls column first so we can filter the plotted data
         with col2:
             st.write("Controls")
             top_n = st.number_input('Show top N players by projection', min_value=5, max_value=200, value=25)
             threshold = st.slider('Min projected points', 0.0, 100.0, 9.9, step=1.0)
-            # Position filters: individual checkboxes per position
             st.write('Positions')
             show_qb = st.checkbox('QB', value=True)
             show_rb = st.checkbox('RB', value=True)
@@ -176,13 +124,12 @@ def display_reports_tab(player_df, dataset_df, seasons):
             show_te = st.checkbox('TE', value=True)
             show_k = st.checkbox('K', value=True)
             show_dst = st.checkbox('D/ST', value=True)
-            # Scoring metric selector
             score_metric = st.selectbox('Score metric:', [
                 'ECR / Projected (rank-to-points ratio)',
                 'Projected / (ECR + 1) (favours high points & good rank)'
             ])
+            scoring_mode = st.selectbox('Scoring Mode', ['PPR', '1/2 PPR', 'STANDARD'], index=0)
 
-        # Apply position filter to plotted data based on checkboxes
         positions_selected = []
         if show_qb:
             positions_selected.append('QB')
@@ -197,11 +144,55 @@ def display_reports_tab(player_df, dataset_df, seasons):
         if show_dst:
             positions_selected.append('D/ST')
 
+        # season filtered df
+        df = player_df[player_df['season'] == season].copy()
+        df_season = df.copy()
+
+
+        if scoring_mode == 'PPR':
+            use_col = 'projected_points_ppr'
+        elif scoring_mode == '1/2 PPR':
+            use_col = 'projected_points_half_ppr'
+        else:
+            use_col = 'projected_points_standard'
+
+        agg_total = df_season.groupby(['player_id','name','team','position'], as_index=False)[use_col].sum().rename(columns={use_col:'projected_points_total'})
+        agg_avg = df_season.groupby(['player_id','name','team','position'], as_index=False)[use_col].mean().rename(columns={use_col:'projected_points_avg'})
+
+        if 'ECR' in df_season.columns:
+            ecr = df_season[['player_id','ECR']].drop_duplicates(subset=['player_id'])
+        elif 'ecr' in df_season.columns:
+            ecr = df_season[['player_id','ecr']].drop_duplicates(subset=['player_id']).rename(columns={'ecr':'ECR'})
+        else:
+            ecr = pd.DataFrame(columns=['player_id','ECR'])
+
+        if view_mode == 'Single Week' and week is not None:
+            df_week = df_season[df_season['week'] == week].copy()
+            merged = df_week.groupby(['player_id','name','team','position'], as_index=False)[use_col].first().rename(columns={use_col:'projected_points_avg'})
+            merged['projected_points_total'] = merged['projected_points_avg']
+            merged = pd.merge(merged, ecr, on='player_id', how='left')
+        else:
+            merged = pd.merge(agg_total, agg_avg, on=['player_id','name','team','position'], how='left')
+            merged = pd.merge(merged, ecr, on='player_id', how='left')
+
+        if 'ECR' in merged.columns:
+            merged = merged[merged['ECR'].notna()].copy()
+
+        if view_mode == 'Total':
+            x_col = 'projected_points_total'
+            x_label = 'Projected Points (Total)'
+        else:
+            x_col = 'projected_points_avg'
+            x_label = 'Projected Points (Avg per Week)'
+
+        plot_df = merged.copy()
+        plot_df = plot_df.dropna(subset=[x_col])
+        plot_df['ECR_plot'] = plot_df['ECR'].fillna(9999)
+
         plot_filtered = plot_df.copy()
         if positions_selected:
             plot_filtered = plot_filtered[plot_filtered['position'].isin(positions_selected)]
 
-        # Color mapping for positions
         position_domain = ['QB','RB','WR','TE','K','D/ST']
         position_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
 
@@ -214,35 +205,25 @@ def display_reports_tab(player_df, dataset_df, seasons):
             ).interactive()
             st.altair_chart(base, use_container_width=True)
 
-        # Table of players who have high projected points relative to their ECR (e.g., high proj but poor ECR)
-        # We'll compute a simple score = projected_points_avg / (ECR + 1) so lower ECR increases score
         table_df = plot_df.copy()
-        # Apply position filter to table
         if positions_selected:
             table_df = table_df[table_df['position'].isin(positions_selected)]
 
-        # Prepare ECR and projection columns for safe math
         table_df = table_df.dropna(subset=['ECR', x_col]).copy()
-        # Avoid divide-by-zero by filtering zero projections
         table_df = table_df[table_df[x_col] > 0]
         table_df['ECR_filled'] = table_df['ECR']
 
-        # Compute chosen metric
         if score_metric.startswith('Projected /'):
-            # higher is better
             table_df['value_score'] = table_df[x_col] / (table_df['ECR_filled'] + 1)
             ascending = False
         else:
-            # ECR / Projected: higher ratio shows more rank per point; keep descending so user can inspect
             table_df['value_score'] = table_df['ECR_filled'] / table_df[x_col]
             ascending = False
 
-        # Filter by threshold
         table_df = table_df[table_df[x_col] >= threshold]
         table_df = table_df.sort_values('value_score', ascending=ascending).head(top_n)
 
         st.write("### Players: high projection per ECR")
-        # Defensive: drop any duplicate column names (keep first occurrence) to avoid downstream errors
         if not table_df.empty:
             table_df = table_df.loc[:, ~table_df.columns.duplicated()]
             display_cols = [c for c in ['name','team','position', x_col, 'ECR', 'value_score'] if c in table_df.columns]
@@ -250,7 +231,6 @@ def display_reports_tab(player_df, dataset_df, seasons):
         else:
             st.write('No players match the filters')
 
-        # Small explanation
         st.markdown("""
         This report compares Expert Consensus Ranking (ECR) to projected fantasy points.
         Use the controls to switch between total, average, or a single-week snapshot. The table shows players who look undervalued by ECR relative to their projected fantasy output.

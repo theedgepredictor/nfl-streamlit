@@ -24,7 +24,11 @@ def load_player_data(seasons):
         all_player_data.append(season_data)
 
     # Combine all seasons
-    return pd.concat(all_player_data, ignore_index=True)
+    df = pd.concat(all_player_data, ignore_index=True)
+    df['projected_points_ppr'] = df['projected_points'].copy()
+    df['projected_points_half_ppr'] = df['projected_points_ppr'] - (df['projected_receiving_targets'].fillna(0) * 0.5)
+    df['projected_points_standard'] = df['projected_points_ppr'] - (df['projected_receiving_targets'].fillna(0) * 1.0)
+    return df
 
 @st.cache_data(ttl=3600) # Invalidate cache after an hour
 def load_feature_store(seasons):

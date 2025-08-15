@@ -102,6 +102,79 @@ def display_event_player_tab(dataset_df, event_player_df):
             (event_player_df['week'] == week) & 
             (event_player_df['team'] == home_team)
         ].copy()
+
+        # --- Aggregation helpers ---
+        def safe_sum(df, col):
+            return df[col].sum() if col in df.columns else 0
+
+        def aggregate_offense(players_df):
+            off_pos = ['QB', 'RB', 'WR', 'TE','D/ST']
+            off_players = players_df[players_df['position'].isin(off_pos)]
+
+            # TDs can be split across passing/rushing/receiving depending on position
+            total_pass_tds = safe_sum(off_players, 'projected_passing_touchdowns')
+            total_rush_tds = safe_sum(off_players, 'projected_rushing_touchdowns')
+            total_def_tds = safe_sum(off_players, 'projected_defensive_touchdowns')
+            total_pass_yds = safe_sum(off_players, 'projected_passing_yards')
+            total_rush_yds = safe_sum(off_players, 'projected_rushing_yards')
+            total_rec_yds = safe_sum(off_players, 'projected_receiving_yards')
+
+            # Kickers (FGs / XPs)
+            kickers = players_df[players_df['position'] == 'K']
+            total_made_fgs = safe_sum(kickers, 'projected_made_field_goals')
+            total_made_xps = safe_sum(kickers, 'projected_made_extra_points')
+
+            total_score = total_rush_tds * 6 + total_pass_tds * 6 + total_def_tds * 6 + total_made_fgs * 3 + total_made_xps
+
+            return {
+                'proj_score': total_score,
+                'pass_tds': total_pass_tds,
+                'rush_tds': total_rush_tds,
+                'def_tds': total_def_tds,
+                'pass_yds': total_pass_yds,
+                'rush_yds': total_rush_yds,
+                'rec_yds': total_rec_yds,
+                'made_fgs': total_made_fgs,
+                'made_xps': total_made_xps
+            }
+
+        # Compute aggregates for both sides
+        away_off = aggregate_offense(away_players)
+        home_off = aggregate_offense(home_players)
+
+        # Build matchup table: offense vs opponent DST
+        matchup_rows = [
+            {
+                'team': away_team,
+                'proj_score': away_off['proj_score'],
+                'pass_tds': away_off['pass_tds'],
+                'rush_tds': away_off['rush_tds'],
+                'def_tds': away_off['def_tds'],
+                'pass_yds': away_off['pass_yds'],
+                'rush_yds': away_off['rush_yds'],
+                'rec_yds': away_off['rec_yds'],
+                'made_fgs': away_off['made_fgs'],
+                'made_xps': away_off['made_xps'],
+            },
+            {
+                'team': home_team,
+                'proj_score': home_off['proj_score'],
+                'pass_tds': home_off['pass_tds'],
+                'rush_tds': home_off['rush_tds'],
+                'def_tds': home_off['def_tds'],
+                'pass_yds': home_off['pass_yds'],
+                'rush_yds': home_off['rush_yds'],
+                'rec_yds': home_off['rec_yds'],
+                'made_fgs': home_off['made_fgs'],
+                'made_xps': home_off['made_xps'],
+            }
+        ]
+
+        matchup_df = pd.DataFrame(matchup_rows)
+
+        # Display matchup summary above player lists
+        st.write("### Offense vs Defense Matchup Summary")
+        st.dataframe(matchup_df.set_index('team'))
         
         # Display side by side comparison
         col1, col2 = st.columns(2)
@@ -111,7 +184,7 @@ def display_event_player_tab(dataset_df, event_player_df):
             for pos in ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST']:
                 st.write(f"### {pos}")
                 pos_players = away_players[away_players['position'] == pos]
-                cols = ['name', 'projected_points'] + POSITION_STAT_MAP[pos]
+                cols = ['name', 'projected_points','ecr'] + POSITION_STAT_MAP[pos]
                 if not pos_players.empty:
                     st.dataframe(pos_players[cols])
         
@@ -120,7 +193,7 @@ def display_event_player_tab(dataset_df, event_player_df):
             for pos in ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST']:
                 st.write(f"### {pos}")
                 pos_players = home_players[home_players['position'] == pos]
-                cols = ['name', 'projected_points'] + POSITION_STAT_MAP[pos]
+                cols = ['name', 'projected_points','ecr'] + POSITION_STAT_MAP[pos]
 
                 if not pos_players.empty:
                     st.dataframe(pos_players[cols])
@@ -192,7 +265,7 @@ def display_player_tab(player_df):
             pos_players = filtered_df[filtered_df['position'] == pos]
             if not pos_players.empty:
                 st.write(f"### {pos}")
-                st.dataframe(pos_players[['name', 'projected_points'] + POSITION_STAT_MAP[pos]])
+                st.dataframe(pos_players[['name', 'projected_points',] + POSITION_STAT_MAP[pos]])
     
     else:  # Position
         pos_options = ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST']
